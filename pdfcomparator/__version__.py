@@ -1,0 +1,8 @@
+__title__ = "pdf-comparator"
+__version__ = "0.0.1"
+__description__ = "With the PDF Page Comparator, you can streamline your PDF document analysis process and ensure the accuracy and consistency of your documents."
+__author__ = "Vint Lin"
+__author_email__ = "vintonlin@gmail.com"
+__url__ = "https://github.com/VintLin/pdf-comparator"
+__license__ = "MIT license"
+__copyright__ = "Copyright 2023 Vint Lin"
