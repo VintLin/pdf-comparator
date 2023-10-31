@@ -140,7 +140,7 @@ def _draw_text_image(image, pdf_width, pdf_height, words_group):
 def _compare_image(a_image=None, b_image=None, a_text_image=None, b_text_image=None, options:CompareOptions=None):
     is_compare_text = False
     is_compare_image = False
-    mask = a_image.copy()
+    
     h, w = -1, -1
     if a_image is not None and b_image is not None:
         is_compare_image = True
@@ -154,12 +154,15 @@ def _compare_image(a_image=None, b_image=None, a_text_image=None, b_text_image=N
         dilated = cv2.dilate(thresh, kernel, iterations=2)
         cnts = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
-        for c in cnts:
-            cv2.fillPoly(mask, [c], (0, 0, 255))
         
+        height, width, _ = a_image.shape
+        white_mask = np.ones((height, width, 3), dtype=np.uint8) * 255
+        for c in cnts:
+            cv2.fillPoly(white_mask, [c], (0, 0, 255))
+
         transparency = 0.6
-        cv2.addWeighted(mask, transparency, a_image, 1 - transparency, 0, a_image)
-        cv2.addWeighted(mask, transparency, b_image, 1 - transparency, 0, b_image)
+        cv2.addWeighted(white_mask, transparency, a_image, 1 - transparency, 0, a_image)
+        cv2.addWeighted(white_mask, transparency, b_image, 1 - transparency, 0, b_image)
         
         h = min(a_image.shape[0], b_image.shape[0], diff.shape[0], thresh.shape[0])
         w = min(a_image.shape[1], b_image.shape[1], diff.shape[1], thresh.shape[1])
@@ -185,11 +188,11 @@ def _compare_image(a_image=None, b_image=None, a_text_image=None, b_text_image=N
     if is_compare_image and is_compare_text:
         a_text_image = _draw_path(options.a_pdf_path, options.a_page_index, a_text_image)
         b_text_image = _draw_path(options.b_pdf_path, options.b_page_index, b_text_image)
-        upper = np.hstack((a_text_image, b_text_image))  
-        middle = np.hstack((a_image, b_image))  
+        upper = np.hstack((a_text_image, b_text_image))
+        middle = np.hstack((a_image, b_image))
         lower = np.hstack((diff, thresh))  
         result = np.vstack((upper, middle))  
-        result = np.vstack((result, lower)) 
+        result = np.vstack((result, lower))
     elif is_compare_image:
         a_image = _draw_path(options.a_pdf_path, options.a_page_index, a_image)
         b_image = _draw_path(options.b_pdf_path, options.b_page_index,  b_image)
