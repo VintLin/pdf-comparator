@@ -1,3 +1,4 @@
+# PDF比較ツール
 <p align="center">
   <img src='../images/logo.png' width=300>
 </p>
@@ -20,7 +21,7 @@
 このツールは、2つのPDFファイル間のピクセルの違いに基づいて比較結果を生成し、4つの画像を含んでいます。上の2つの画像では、赤いオーバーレイがピクセルの違いのある領域を示しています。違いをより明確にするために、下に2つの追加の画像が提供されます。左下の画像が真っ白であるか、右下の画像が真っ黒である場合、2つのPDF間に違いがないことを示します。
 
 <p align="center">
-  <img src='../images/example_image.jpg' width=600>
+  <img src='../images/example_image.jpg' width=900>
 </p>
 
 #### 2. テキストの差異比較
@@ -33,7 +34,7 @@
 - **赤色**：単語は新しく追加されたか変更されたものです。
 
 <p align="center">
-  <img src='../images/example_text.jpg' width=600>
+  <img src='../images/example_text.jpg' width=900>
 </p>
 
 ### 🖥️ クイックスタート
