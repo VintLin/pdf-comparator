@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    【英语 | <a href="../doc/README-Chinese.md">中文</a> | <a href="../doc/README-Japanese.md">日语</a>】
+    【<a href="../doc/README-English.md">英语</a> | 中文 | <a href="../doc/README-Japanese.md">日语</a>】
 </p>
 
 ## 📖 概览
