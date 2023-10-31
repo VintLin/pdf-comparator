@@ -1,3 +1,4 @@
+# PDF 对比工具
 <p align="center">
   <img src='../images/logo.png' width=300>
 </p>
@@ -7,23 +8,29 @@
 </p>
 
 ## 📖 概览
+这款工具专门为需要耗费大量时间校对PDF文件内容的人而设计，它能够高效地比对不同PDF文件之间的差异。通过此工具生成的比对结果，可以迅速识别PDF文件之间的像素和文字差异。
 
+对比结果样例：
 <p align="center">
   <img src='../images/example.jpg' width=600>
 </p>
 
 ## ❓ PDF比较器能做什么？
 
-1. 图片差异对比
+#### 1. 像素差异对比
+工具会根据两份PDF像素差异而生成对比结果，其中包含四张图片，如果两份PDF存在像素差异，则会在上方两张图片中以红色半透明遮罩表示。为了让差异更加清晰，同时提供下方两张图片，如果左下图片为纯白或右下图片为纯黑则代表两份PDF没有差异。
 
 <p align="center">
-  <img src='../images/example_image.jpg' width=600>
+  <img src='../images/example_image.jpg' width=900>
 </p>
 
-2. 文本差异对比
+#### 2. 文本差异对比
+工具会将PDF中所有能够识别到的文字使用带颜色的遮罩进行标识，其中不同颜色有不同的含义。
+
+**绿色**：该字未改变，**蓝色**：该字字号改变，**橙色**：该字字色改变，**紫色**：该字字号、字色改变，**红色**：该字为增改字。
 
 <p align="center">
-  <img src='../images/example_text.jpg' width=600>
+  <img src='../images/example_text.jpg' width=900>
 </p>
 
 ### 🖥️ 快速启动
