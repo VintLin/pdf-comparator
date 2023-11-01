@@ -124,7 +124,7 @@ Made with [contrib.rocks](https://contrib.rocks).
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/pdf-comparator&type=Date)](https://star-history.com/#VintLin/pdf-comparator&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/diff-pdf&type=Date)](https://star-history.com/#VintLin/diff-pdf&Date)
 
 ## 📬 Contact
 
