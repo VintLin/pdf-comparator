@@ -124,7 +124,7 @@ python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image --cache /pat
 
 ## 🌟 星标历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/diff-pdf&type=Date)](https://star-history.com/#VintLin/diff-pdf&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/pdf-comparator&type=Date)](https://star-history.com/#VintLin/pdf-comparator&Date)
 
 ## 📬 联系
 

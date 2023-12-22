@@ -1,10 +1,10 @@
-# diff-pdf
+# pdf-comparator
 <p align="center">
-  <img src='../images/logo.png' width=300>
+  <img src='./images/logo.png' width=300>
 </p>
 
 <p align="center">
-    【English | <a href="../doc/README-Chinese.md">Chinese</a> | <a href="../doc/README-Japanese.md">Japanese</a>】
+    【English | <a href="doc/README-Chinese.md">Chinese</a> | <a href="doc/README-Japanese.md">Japanese</a>】
 </p>
 
 ## 📖 Overview
@@ -12,7 +12,7 @@ This tool is specifically designed for individuals who need to spend a significa
 
 Sample Comparison Results:
 <p align="center">
-  <img src='../images/example.jpg' width=600>
+  <img src='./images/example.jpg' width=600>
 </p>
 
 ## ❓ What Can PDF Comparator Do?
@@ -21,7 +21,7 @@ Sample Comparison Results:
 This tool generates a comparison result based on pixel differences between two PDF files, including four images. In the top two images, the red overlay indicates areas with pixel differences. To make differences more evident, two additional images are provided below. If the bottom-left image is pure white or the bottom-right image is pure black, it signifies that there are no differences between the two PDFs.
 
 <p align="center">
-  <img src='../images/example_image.jpg' width=900>
+  <img src='./images/example_image.jpg' width=600>
 </p>
 
 #### 2. Text Difference Comparison
@@ -34,7 +34,7 @@ The tool will mark all recognizable text in the PDF with colored masks, where di
 - **Red**: The word is an added or modified word.
 
 <p align="center">
-  <img src='../images/example_text.jpg' width=900>
+  <img src='./images/example_text.jpg' width=600>
 </p>
 
 ### 🖥️ Quick Start
@@ -124,7 +124,7 @@ Made with [contrib.rocks](https://contrib.rocks).
 
 ## 🌟 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/diff-pdf&type=Date)](https://star-history.com/#VintLin/diff-pdf&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=VintLin/pdf-comparator&type=Date)](https://star-history.com/#VintLin/pdf-comparator&Date)
 
 ## 📬 Contact
 
