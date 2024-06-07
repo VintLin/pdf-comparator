@@ -9,9 +9,7 @@ from pdfcomparator._pdf_handler import PDFHandler
 from pdfcomparator._utils_for_compare import CompareUtils, CharInfo
 from pdfcomparator._utils_for_image import ImageUtils
 
-def compare_pdf(a_path, b_path, save_folder, compare_image=True, compare_text=True):
-    if not compare_image and not compare_text:
-        return
+def compare_pdf(a_path, b_path, save_folder):
     # init folder
     cache_folder, origin_folder, result_folder = init_folder(save_folder)
     # 1. init pdf file
