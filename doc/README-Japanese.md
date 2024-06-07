@@ -28,9 +28,7 @@
 このツールは、PDF内のすべての認識可能なテキストを色付きのマスクで表示し、異なる色には異なる意味があります。
 
 - **緑色**：単語は変更されていません。
-- **青色**：単語のフォントサイズが変更されました。
-- **オレンジ色**：単語のフォントカラーが変更されました。
-- **紫色**：単語のフォントサイズとカラーが変更されました。
+- **オレンジ色**：単語のフォントサイズとカラーが変更されました。
 - **赤色**：単語は新しく追加されたか変更されたものです。
 
 <p align="center">
@@ -47,35 +45,35 @@
 git clone https://github.com/VintLin/pdf-comparator.git
 ```
 
-1. **Python環境の設定：** "pdf-comparator"プロジェクトディレクトリを開き、Python 3.8以上のバージョンがインストールされていることを確認してください。次のコマンドを使用して、環境を作成しアクティブにします。必要に応じて "venv" を好きな環境名に置き換えてください：
+2. **Python環境の設定：** "pdf-comparator"プロジェクトディレクトリを開き、Python 3.8以上のバージョンがインストールされていることを確認してください。次のコマンドを使用して、環境を作成しアクティブにします。必要に応じて "venv" を好きな環境名に置き換えてください：
 
 ```bash
 cd pdf-comparator
 python3 -m venv venv
 ```
 
-2. **依存関係のインストール：** 次のコマンドを実行して必要な依存関係をインストールします：
+3. **依存関係のインストール：** 次のコマンドを実行して必要な依存関係をインストールします：
 
 ```bash
 pip3 install -r requirements.txt
 ```
 
-3. **コードを直接実行：** 次のコマンドを使用してPDFファイルを比較します：
+4. **コードを直接実行：** 次のコマンドを使用してPDFファイルを比較します：
 
 ```bash
-python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
-4. **実行可能ファイルのビルド：** 必要に応じて、cx-Freezeを使用して実行可能ファイルをビルドできます（成功した場合、実行可能ファイルは "/build/" ディレクトリにあります）：
+5. **実行可能ファイルのビルド：** 必要に応じて、cx-Freezeを使用して実行可能ファイルをビルドできます（成功した場合、実行可能ファイルは "/build/" ディレクトリにあります）：
 
 ```bash
 python3 setup.py build
 ```
 
-5. **実行可能ファイルを実行：** 次のコマンドを使用してPDFファイルを比較します：
+6. **実行可能ファイルを実行：** 次のコマンドを使用してPDFファイルを比較します：
 
 ```bash
-./pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+./pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
 ### コマンドライン引数の使用方法
@@ -88,10 +86,6 @@ python3 setup.py build
 
 - `output_folder`（必須）：出力フォルダのパス。比較結果はこのフォルダに保存されます。
 
-- `--image`：オプションの引数で、このオプションを指定すると、プログラムは画像の比較を実行します。デフォルトではこのオプションは有効です。
-
-- `--text`：オプションの引数で、このオプションを指定すると、プログラムはテキストの比較を実行します。デフォルトではこのオプションは無効です。
-
 - `--cache`または`-c`：オプションの引数で、キャッシュのパスを指定します。キャッシュパスが指定されている場合、プログラムは比較プロセスを高速化するためにキャッシュを使用します。デフォルトではキャッシュは無効です。
 
 ### 例
@@ -99,14 +93,11 @@ python3 setup.py build
 以下はいくつかの使用例です：
 
 ```bash
-# 画像の比較を実行
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image
+# 比較を実行
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/
 
-# テキストの比較を実行
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --text
-
-# 画像の比較を実行し、キャッシュを有効にする
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image --cache /path/to/cache
+# 比較を実行し、キャッシュを有効にする
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --cache /path/to/cache
 ```
 
 ## 👨‍💻‍ 貢献者

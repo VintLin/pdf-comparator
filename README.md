@@ -28,9 +28,7 @@ This tool generates a comparison result based on pixel differences between two P
 The tool will mark all recognizable text in the PDF with colored masks, where different colors have different meanings.
 
 - **Green**: The word remains unchanged.
-- **Blue**: The font size of the word has changed.
-- **Orange**: The word's font color has changed.
-- **Purple**: Both the font size and color of the word have changed.
+- **Orange**: Both the font size and color of the word have changed.
 - **Red**: The word is an added or modified word.
 
 <p align="center">
@@ -63,7 +61,7 @@ pip3 install -r requirements.txt
 4. **Run the Code Directly:** Compare PDF files by running the following command:
 
 ```bash
-python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
 5. **Build an Executable:** You can also build an executable using cx-Freeze as needed (the executable can be found in "/build/" after a successful build):
@@ -75,7 +73,7 @@ python3 setup.py build
 6. **Run the Executable:** Compare PDF files by running the following command with the executable:
 
 ```bash
-./pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+./pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
 ### Command Line Argument Usage
@@ -88,10 +86,6 @@ This program accepts the following command line arguments:
 
 - `output_folder` (required): Path to the output folder. Comparison results will be saved in this folder.
 
-- `--image`: Optional argument. If specified, the program will perform image comparison. This option is enabled by default.
-
-- `--text`: Optional argument. If specified, the program will perform text comparison. This option is disabled by default.
-
 - `--cache` or `-c`: Optional argument for specifying a cache path. If a cache path is specified, the program will use caching to accelerate the comparison process. Caching is not enabled by default.
 
 ### Examples
@@ -99,14 +93,11 @@ This program accepts the following command line arguments:
 Here are some usage examples:
 
 ```bash
-# Perform image comparison
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image
+# Perform comparison
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/
 
-# Perform text comparison
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --text
-
-# Perform image comparison and enable caching
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image --cache /path/to/cache
+# Perform comparison and enable caching
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --cache /path/to/cache
 ```
 
 ## 👨‍💻‍ Contributors

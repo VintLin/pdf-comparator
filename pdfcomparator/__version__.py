@@ -1,5 +1,5 @@
 __title__ = "pdf-comparator"
-__version__ = "0.0.1"
+__version__ = "1.0.0"
 __description__ = "With the PDF Page Comparator, you can streamline your PDF document analysis process and ensure the accuracy and consistency of your documents."
 __author__ = "Vint Lin"
 __author_email__ = "vintonlin@gmail.com"

@@ -1,234 +1,184 @@
 import os
-import shutil
-import imutils
+import gc
 import cv2
+import shutil
 import numpy as np
-import logging
+import pdfplumber.utils as pdf_utils
 
-from PIL import Image, ImageDraw, ImageFont
-from skimage.metrics import structural_similarity as compare_ssim
+from pdfcomparator._pdf_handler import PDFHandler
+from pdfcomparator._utils_for_compare import CompareUtils, CharInfo
+from pdfcomparator._utils_for_image import ImageUtils
 
-from pdfcomparator._pdf_file import PDFFile
-from pdfcomparator._compare_image import ImageHandler
-from pdfcomparator._compare_char import compare_page_text
-
-def compare_pdf(a_pdf, b_pdf, output_folder, compare_image=True, compare_text=True):
+def compare_pdf(a_path, b_path, save_folder, compare_image=True, compare_text=True):
     if not compare_image and not compare_text:
         return
+    # init folder
+    cache_folder, origin_folder, result_folder = init_folder(save_folder)
+    # 1. init pdf file
+    a_pdf = PDFHandler(a_path).load()
+    b_pdf = PDFHandler(b_path).load()
+    # 2. convert pdf to image and get image path
+    a_images = a_pdf.to_images(os.path.join(cache_folder, "left_image"))
+    b_images = b_pdf.to_images(os.path.join(cache_folder, "right_image"))
     
-    options = CompareOptions(a_pdf, b_pdf, output_folder, is_compare_image=compare_image, is_compare_text=compare_text)
+    # 3. get match images
+    match_infos = CompareUtils.compare_pdf_by_image(a_images, b_images, a_pdf.is_large())
 
-    a = PDFFile(a_pdf)
-    b = PDFFile(b_pdf)
-    
-    a_images = a.to_images(os.path.join(options.cache_path, "LeftImage"), True)
-    b_images = b.to_images(os.path.join(options.cache_path, "RightImage"), True)
-    
-    match_pages = PDFFile.get_match_pages_by_image(a_images, b_images)
-    
-    for indexs in match_pages:
-        options.set_current_page(a_images[indexs[0]], indexs[0] + 1, b_images[indexs[1]], indexs[1] + 1, indexs[2])        
-        origin_path = os.path.join(options.origin_path, options.page_name)
-        compare_path = os.path.join(options.compare_path, options.page_name)
-        if compare_text:
-            text_diffs = compare_page_text(a.get_page(indexs[0]), b.get_page(indexs[1]))
-            options.set_compare_text(
-                a.page_width,
-                a.page_height,
-                PDFFile.extract_words(text_diffs[0]), 
-                PDFFile.extract_words(text_diffs[1]),
-                )
-        _compare(origin_path, compare_path, options)
-    
-    if os.path.exists(options.cache_path):
-        shutil.rmtree(options.cache_path)
-
-class CompareOptions:
-    def __init__(self, a_path, b_path, output_folder, is_compare_image=False, is_compare_text=False) -> None:
-        self.a_pdf_path = a_path
-        self.b_pdf_path = b_path
-        self.output_folder = output_folder
-        self.is_compare_image = is_compare_image
-        self.is_compare_text = is_compare_text
+    # 4. compare images and save result
+    for a_index, b_index, similarity in match_infos:
+        # 4.1 init file path
+        file_name = get_file_name(a_index, b_index, similarity)
+        origin_path = os.path.join(origin_folder, file_name)
+        result_path = os.path.join(result_folder, file_name + ".jpg")
         
-        self.cache_path = self._init_folder(os.path.join(output_folder, "Cache"))
-        self.origin_path = self._init_folder(os.path.join(output_folder, "OriginImages"))
-        self.compare_path = self._init_folder(os.path.join(output_folder, "CompareResult"))
-    
-    def set_current_page(self, a_image, a_page_index, b_image, b_page_index, diff_rate):
-        self.a_image_path = a_image
-        self.a_page_index = a_page_index
-        self.b_image_path = b_image
-        self.b_page_index = b_page_index
-        self.diff_rate = diff_rate
-        self.suffix = os.path.splitext(a_image)[1]
-        rate = "[{:.2f}%]".format(diff_rate * 100)
-        if diff_rate == 1:
-            rate = "[SAME]"
-        elif rate == "[100.00%]":
-            rate = "[99.99%]"
-        self.page_name = f"Page{a_page_index}_vs_Page{b_page_index}{rate}"
+        # 4.2 get origin image
+        a_image, b_image = save_origin_image(a_images[a_index], b_images[b_index], origin_path)
         
-    def set_compare_text(self, pdf_width, pdf_height, a_text_diffs, b_text_diffs):
-        self.pdf_width = pdf_width
-        self.pdf_height = pdf_height
-        self.a_text_diffs = a_text_diffs
-        self.b_text_diffs = b_text_diffs
-        return self
-    
-    def _init_folder(self, folder):
-        if os.path.exists(folder):
-            shutil.rmtree(folder)
-        os.makedirs(folder, exist_ok=True)
-        return folder
+        # 4.3 get mark diff text image
+        a_text_image, b_text_image = get_text_images(a_index, a_pdf, a_image.copy(), b_index, b_pdf, b_image.copy())
+        
+        # 4.4 merge image and save to local
+        output_image = merge_image(a_image, b_image, a_text_image, b_text_image)
+        ImageUtils.save_image(result_path, output_image)
 
-def _compare(origin_path, compare_path, options: CompareOptions):
-    os.makedirs(origin_path, exist_ok=True)
-    a_path = os.path.join(origin_path, "OriginImage(Left)" + options.suffix)
-    b_path = os.path.join(origin_path, "OriginImage(Right)" + options.suffix)
-    resize_path = os.path.join(origin_path, "ResizeImage(Right)" + options.suffix)
-    quick_path = compare_path + options.suffix
-    
-    a_image = ImageHandler.read_image(options.a_image_path)
-    b_image = ImageHandler.read_image(options.b_image_path)
-    ImageHandler.save_image(a_path, a_image)
-    ImageHandler.save_image(b_path, b_image)
-    
-    real_resize_path = ImageHandler.check_image_resize(options.b_image_path, options.a_image_path, resize_path)
-    if real_resize_path == resize_path:
-        b_image = ImageHandler.read_image(resize_path)
-    
-    if options.is_compare_text:
-        a_text_image = _draw_text_image(a_image.copy(), options.pdf_width, options.pdf_height, options.a_text_diffs)
-        b_text_image = _draw_text_image(b_image.copy(), options.pdf_width, options.pdf_height, options.b_text_diffs)
-    
-    if options.is_compare_image and options.is_compare_text:
-        output_image = _compare_image(a_image, b_image, a_text_image, b_text_image, options)
-    elif options.is_compare_image:
-        output_image = _compare_image(a_image, b_image, None, None, options)
-    elif options.is_compare_text:
-        output_image = _compare_image(None, None, a_text_image, b_text_image, options)
-    # save image
-    ImageHandler.save_image(quick_path, output_image)
+        del a_image, b_image, a_text_image, b_text_image, output_image
+        gc.collect()
 
-def _draw_text_image(image, pdf_width, pdf_height, words_group):
+    del a_pdf, b_pdf
+    
+    if os.path.exists(cache_folder):
+        shutil.rmtree(cache_folder)
+
+def init_folder(folder):
+    # check file is exists
+    if os.path.exists(folder):
+        shutil.rmtree(folder)
+    
+    cache_folder = os.path.join(folder, "Cache")
+    origin_folder = os.path.join(folder, "OriginImages")
+    result_folder = os.path.join(folder, "CompareResult")
+
+    os.makedirs(folder, exist_ok=True)
+    os.makedirs(cache_folder, exist_ok=True)
+    os.makedirs(origin_folder, exist_ok=True)
+    os.makedirs(result_folder, exist_ok=True)
+    return cache_folder, origin_folder, result_folder
+
+def get_file_name(a_index, b_index, similarity):
+    str_suffix = "【{:.2f}%】".format(similarity * 100)
+    if similarity == 1:
+        str_suffix = "【SAME】"
+    elif str_suffix == "【100.00%】":
+        str_suffix = "【99.99%】"
+    return f"Page{a_index + 1}_vs_Page{b_index + 1}{str_suffix}"
+
+def save_origin_image(a_image_path, b_image_path, origin_folder):
+    os.makedirs(origin_folder, exist_ok=True)
+    
+    a_path = os.path.join(origin_folder, "LeftOriginalImage.jpg")
+    b_path = os.path.join(origin_folder, "RightOriginalImage.jpg")
+    resize_path = os.path.join(origin_folder, "ResizedImage(Right).jpg")
+
+    a_image = ImageUtils.read_image(a_image_path)
+    b_image = ImageUtils.read_image(b_image_path)
+    ImageUtils.save_image(a_path, a_image)
+    ImageUtils.save_image(b_path, b_image)
+    
+    if ImageUtils.check_image_resize(a_image, b_image, resize_path):
+        b_image = ImageUtils.read_image(resize_path)
+    return a_image, b_image
+
+def get_text_images(a_index, a_pdf, a_image, b_index, b_pdf, b_image):
+    text_diffs = CompareUtils.compare_pdf_by_text(a_pdf, a_index, b_pdf, b_index)
+    a_text_image = get_text_image(a_index, a_pdf.path, text_diffs[0], a_image.copy(),a_pdf.page_width, a_pdf.page_height)
+    b_text_image = get_text_image(b_index, b_pdf.path, text_diffs[1], b_image.copy(), b_pdf.page_width, b_pdf.page_height)
+    return a_text_image, b_text_image
+    
+def get_text_image(index, path, diffs, image, width, height):
+    words_group = _extract_words(diffs)
+    edit_image = _draw_diff_word(words_group, image, width, height)
+    return edit_image
+
+def merge_image(
+        a_image=None, 
+        b_image=None, 
+        a_text_image=None, 
+        b_text_image=None, 
+    ):
+    if a_image is None or b_image is None or a_text_image is None or b_text_image is None:
+        return None
+    # Determine minimum dimensions
+    h = min(a_image.shape[0], b_image.shape[0])
+    w = min(a_image.shape[1], b_image.shape[1])
+
+    # Resize images to minimum dimensions
+    a_text_image = cv2.resize(a_text_image, (w, h))
+    b_text_image = cv2.resize(b_text_image, (w, h))
+    upper = np.hstack((a_text_image, b_text_image))
+    del a_text_image, b_text_image
+    
+    a_image = cv2.resize(a_image, (w, h))
+    b_image = cv2.resize(b_image, (w, h))
+    # Calculate absolute difference between images
+    abs_diff = cv2.absdiff(a_image, b_image)
+    abs_diff_gray = cv2.cvtColor(abs_diff, cv2.COLOR_BGR2GRAY)
+    # Threshold the difference image to get significant differences
+    _, mask = cv2.threshold(abs_diff_gray, 15, 255, cv2.THRESH_BINARY)
+    # Create a color mask
+    a_color_mask = a_image.copy()
+    b_color_mask = b_image.copy()
+    a_color_mask[mask > 0] = [0, 0, 255]  # Red color
+    b_color_mask[mask > 0] = [0, 0, 255]
+    # Apply the mask to the original images
+    a_color_mask = cv2.addWeighted(a_color_mask, 0.6, a_image, 0.4, 0)
+    b_color_mask = cv2.addWeighted(b_color_mask, 0.6, b_image, 0.4, 0)
+    middle = np.hstack((a_color_mask, b_color_mask))
+    del mask, a_color_mask, b_color_mask
+    
+    abs_diff_gray_inverted = 255 - abs_diff_gray
+    # Convert abs_diff_gray to a color image if you want to display it alongside the heatmap
+    abs_diff_color = cv2.cvtColor(abs_diff_gray, cv2.COLOR_GRAY2BGR)
+    abs_diff_color_inverted = cv2.cvtColor(abs_diff_gray_inverted, cv2.COLOR_GRAY2BGR)
+    # Combine text and image comparisons
+    lower = np.hstack((abs_diff_color, abs_diff_color_inverted))  # Showing grayscale and heatmap comparison
+    del abs_diff_color, abs_diff_color_inverted
+    
+    # Stack all parts together
+    result_image = np.vstack((upper, middle, lower))
+    return result_image
+
+def _extract_words(words_group):
+        extract_words = {}
+        for key, words in words_group.items():
+            extract_words[key] = pdf_utils.extract_words(words)
+        return extract_words
+
+def _draw_diff_word(words_group, image, width, height):
     img_height, img_width = image.shape[:2]
-    alpha = 0.6  
-    x_scale = img_width / pdf_width
-    y_scale = img_height / pdf_height
-    for index, words in enumerate(words_group):
-        if index == 0:
-            color = (0, 255, 0) # Same (Green)
-        elif index == 1:
-            color = (255, 105, 180) # Font Size (Blue)
-        elif index == 2:
-            color = (0, 165, 230) # Font Color (Yellow)
-        elif index == 3:
-            color = (200, 0, 200) # Font Size / Font Color (Purple)
-        else:
-            color = (0, 0, 255) # Different (Red)
+    alpha = 0.6  # transparence
+    
+    # Calculated scaling factor
+    x_scale = img_width / width
+    y_scale = img_height / height
+    
+    # Create a copy
+    draw_image = image.copy()
+    
+    for key, words in words_group.items():
+        color = CharInfo.colors.get(key, (0, 0, 255))  # Default is red
         for word in words:
-            x0, y0, x1, y1 = word["x0"], word["top"], word["x1"], word["bottom"]
-            top_left = (int(x0 * x_scale), int(y1 * y_scale))
-            bottom_right = (int(x1 * x_scale), int(y0 * y_scale))
-            draw_image = image.copy()
-            cv2.rectangle(draw_image, top_left, bottom_right, color, -1) 
-            image = cv2.addWeighted(draw_image, alpha, image, 1 - alpha, 0)
+            x0, y0, x1, y1 = word["x0"] * x_scale, word["top"] * y_scale, word["x1"] * x_scale, word["bottom"] * y_scale
+
+            # Computed plot coordinates
+            top_left = (int(round(x0)), int(round(y0)))
+            bottom_right = (int(round(x1)), int(round(y1)))
+            
+            # Draw a translucent rectangle directly on the copy
+            cv2.rectangle(draw_image, top_left, bottom_right, color, -1)
+            
+            # Draw border
             cv2.rectangle(image, top_left, bottom_right, color, 2)
+    
+    # Apply transparency at the end of the loop
+    image = cv2.addWeighted(draw_image, alpha, image, 1 - alpha, 0)
     return image
-    
-def _compare_image(a_image=None, b_image=None, a_text_image=None, b_text_image=None, options:CompareOptions=None):
-    is_compare_text = False
-    is_compare_image = False
-    
-    h, w = -1, -1
-    if a_image is not None and b_image is not None:
-        is_compare_image = True
-        a_gray = cv2.cvtColor(a_image, cv2.COLOR_BGR2GRAY)
-        b_gray = cv2.cvtColor(b_image, cv2.COLOR_BGR2GRAY)
-        
-        (score, diff) = compare_ssim(a_gray, b_gray, full=True)
-        diff = (diff * 255).astype("uint8")
-        thresh = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
-        kernel = np.ones((3,3), np.uint8)
-        dilated = cv2.dilate(thresh, kernel, iterations=2)
-        cnts = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cnts = imutils.grab_contours(cnts)
-        
-        height, width, _ = a_image.shape
-        white_mask = np.ones((height, width, 3), dtype=np.uint8) * 255
-        for c in cnts:
-            cv2.fillPoly(white_mask, [c], (0, 0, 255))
-
-        transparency = 0.6
-        cv2.addWeighted(white_mask, transparency, a_image, 1 - transparency, 0, a_image)
-        cv2.addWeighted(white_mask, transparency, b_image, 1 - transparency, 0, b_image)
-        
-        h = min(a_image.shape[0], b_image.shape[0], diff.shape[0], thresh.shape[0])
-        w = min(a_image.shape[1], b_image.shape[1], diff.shape[1], thresh.shape[1])
-        a_image = cv2.resize(a_image, (w, h))
-        b_image = cv2.resize(b_image, (w, h))
-        diff = cv2.resize(diff, (w, h))
-        thresh = cv2.resize(thresh, (w, h))
-    
-    if a_text_image is not None and b_text_image is not None:
-        is_compare_text = True
-        if h == -1 or w == -1:
-            h = min(a_text_image.shape[0], b_text_image.shape[0])
-            w = min(a_text_image.shape[1], b_text_image.shape[1])
-        a_text_image = cv2.resize(a_text_image, (w, h))
-        b_text_image = cv2.resize(b_text_image, (w, h))
-
-    if len(diff.shape) == 2:
-        diff = cv2.cvtColor(diff, cv2.COLOR_GRAY2BGR)
-    if len(thresh.shape) == 2:
-        thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
-    
-    result = None
-    if is_compare_image and is_compare_text:
-        a_text_image = _draw_path(options.a_pdf_path, options.a_page_index, a_text_image)
-        b_text_image = _draw_path(options.b_pdf_path, options.b_page_index, b_text_image)
-        upper = np.hstack((a_text_image, b_text_image))
-        middle = np.hstack((a_image, b_image))
-        lower = np.hstack((diff, thresh))  
-        result = np.vstack((upper, middle))  
-        result = np.vstack((result, lower))
-    elif is_compare_image:
-        a_image = _draw_path(options.a_pdf_path, options.a_page_index, a_image)
-        b_image = _draw_path(options.b_pdf_path, options.b_page_index,  b_image)
-        upper = np.hstack((a_image, b_image))
-        lower = np.hstack((diff, thresh))
-        result = np.vstack((upper, lower))
-    elif is_compare_text:
-        a_text_image = _draw_path(options.a_pdf_path, options.a_page_index, a_text_image)
-        b_text_image = _draw_path(options.b_pdf_path, options.b_page_index, b_text_image)
-        result = np.hstack((a_text_image, b_text_image))
-    return result
-
-
-def _draw_path(path, index, image):
-    try:
-        path = path.strip().replace("//", "\\").replace("\\\\", "\\").replace("/", "\\")
-        path = f"Path: \"{path}\" Current Page: \"{index}\""
-        image_convert = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(image_convert)
-        
-        color = (255, 0, 0)  # Red
-        padding = 10
-        
-        try:
-            max_width = (image_convert.width - 2 * padding) * 3 / 4
-            font_path= "msyh.ttf"
-            font_size = 30
-            font = ImageFont.truetype(font_path, font_size)
-            while font.getlength(path) > max_width:
-                font_size -= 2
-                font = ImageFont.truetype(font_path, font_size)
-        except:
-            font = ImageFont.load_default()
-        logging.debug(f"font path: {font_path}, index {index}")
-        draw.text((padding, padding), path, font=font, fill=color)
-        image = cv2.cvtColor(np.array(image_convert), cv2.COLOR_RGB2BGR)
-        return image
-    except:
-        return image

@@ -28,9 +28,7 @@
 工具会将PDF中所有能够识别到的文字使用带颜色的遮罩进行标识，其中不同颜色有不同的含义。
 
 - **绿色**：该字未改变
-- **蓝色**：该字字号改变
-- **橙色**：该字字色改变
-- **紫色**：该字字号、字色改变
+- **橙色**：该字字号、字色改变
 - **红色**：该字为增改字。
 
 <p align="center">
@@ -47,35 +45,35 @@
 git clone https://github.com/VintLin/pdf-comparator.git
 ```
 
-1. **设置Python环境：** 打开“pdf-comparator”项目目录，确保您具有3.8或更高版本的Python环境。您可以使用以下命令创建并激活此环境，将“venv”替换为您喜欢的环境名称：
+2. **设置Python环境：** 打开“pdf-comparator”项目目录，确保您具有3.8或更高版本的Python环境。您可以使用以下命令创建并激活此环境，将“venv”替换为您喜欢的环境名称：
 
 ```bash
 cd pdf-comparator
 python3 -m venv venv
 ```
 
-2. **安装依赖项：** 通过运行以下命令安装所需的依赖项：
+3. **安装依赖项：** 通过运行以下命令安装所需的依赖项：
 
 ```bash
 pip3 install -r requirements.txt
 ```
 
-3. **直接运行代码：** 通过运行以下命令对比PDF文件：
+4. **直接运行代码：** 通过运行以下命令对比PDF文件：
 
 ```bash
-python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+python3 -m pdfcomparator "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
-4. **构建可执行文件：** 你也可以根据需要通过cx-Freeze构建可执行文件 (执行成功后可以在“/build/”找到可执行文件)：
+5. **构建可执行文件：** 你也可以根据需要通过cx-Freeze构建可执行文件 (执行成功后可以在“/build/”找到可执行文件)：
 
 ```bash
 python3 setup.py build
 ```
 
-5. **运行可执行文件：** 通过运行以下命令比对PDF文件：
+6. **运行可执行文件：** 通过运行以下命令比对PDF文件：
 
 ```bash
-../pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/" --image --text
+../pdfcomparator.exe "/compare_file_1.pdf" "/compare_file_2.pdf" "/result_folder/"
 ```
 
 ### 命令行参数使用说明
@@ -88,10 +86,6 @@ python3 setup.py build
 
 - `output_folder` (必需)：输出文件夹的路径。比较结果将会被保存在这个文件夹中。
 
-- `--image`：可选参数，如果指定该选项，程序将会执行图像比较。默认情况下启用此选项。
-
-- `--text`：可选参数，如果指定该选项，程序将会执行文本比较。默认情况下禁用此选项。
-
 - `--cache` 或 `-c`：可选参数，用于指定缓存路径。如果指定了缓存路径，程序将会使用缓存来加速比较过程。默认情况下不启用缓存。
 
 ### 例子
@@ -99,14 +93,11 @@ python3 setup.py build
 以下是一些使用示例：
 
 ```bash
-# 执行图像比较
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image
+# 执行比较
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/
 
-# 执行文本比较
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --text
-
-# 执行图像比较，并启用缓存
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --image --cache /path/to/cache
+# 执行比较，并启用缓存
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --cache /path/to/cache
 ```
 
 ## 👨‍💻‍ 贡献者
