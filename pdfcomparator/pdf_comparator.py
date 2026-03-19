@@ -1,5 +1,6 @@
 import os
 import gc
+import logging
 import cv2
 import shutil
 import numpy as np
@@ -9,35 +10,49 @@ from pdfcomparator._pdf_handler import PDFHandler
 from pdfcomparator._utils_for_compare import CompareUtils, CharInfo
 from pdfcomparator._utils_for_image import ImageUtils
 
+logger = logging.getLogger(__name__)
+
+
+OVERLAY_STYLES = {
+    CharInfo.STATE_SAME: {
+        "fill": (80, 220, 120),
+        "fill_alpha": 0.28,
+        "stroke": (80, 220, 120),
+        "stroke_alpha": 0.85,
+    },
+    CharInfo.STATE_SIZE_COLOR_DIFF: {
+        "fill": (255, 200, 80),
+        "fill_alpha": 0.3,
+        "stroke": (255, 200, 80),
+        "stroke_alpha": 0.85,
+    },
+    CharInfo.STATE_DIFF: {
+        "fill": (255, 70, 70),
+        "fill_alpha": 0.32,
+        "stroke": (255, 70, 70),
+        "stroke_alpha": 0.9,
+    },
+}
+
 def compare_pdf(a_path, b_path, save_folder):
-    # init folder
+    logger.info("Starting PDF comparison: %s vs %s", a_path, b_path)
     cache_folder, origin_folder, result_folder = init_folder(save_folder)
-    # 1. init pdf file
     a_pdf = PDFHandler(a_path).load()
     b_pdf = PDFHandler(b_path).load()
-    # 2. convert pdf to image and get image path
     a_images = a_pdf.to_images(os.path.join(cache_folder, "left_image"))
     b_images = b_pdf.to_images(os.path.join(cache_folder, "right_image"))
-    
-    # 3. get match images
     match_infos = CompareUtils.compare_pdf_by_image(a_images, b_images, a_pdf.is_large())
+    logger.info("Matched %s page pairs", len(match_infos))
 
-    # 4. compare images and save result
     for a_index, b_index, similarity in match_infos:
-        # 4.1 init file path
         file_name = get_file_name(a_index, b_index, similarity)
         origin_path = os.path.join(origin_folder, file_name)
         result_path = os.path.join(result_folder, file_name + ".jpg")
-        
-        # 4.2 get origin image
         a_image, b_image = save_origin_image(a_images[a_index], b_images[b_index], origin_path)
-        
-        # 4.3 get mark diff text image
         a_text_image, b_text_image = get_text_images(a_index, a_pdf, a_image.copy(), b_index, b_pdf, b_image.copy())
-        
-        # 4.4 merge image and save to local
         output_image = merge_image(a_image, b_image, a_text_image, b_text_image)
         ImageUtils.save_image(result_path, output_image)
+        logger.info("Wrote comparison image: %s", result_path)
 
         del a_image, b_image, a_text_image, b_text_image, output_image
         gc.collect()
@@ -46,6 +61,7 @@ def compare_pdf(a_path, b_path, save_folder):
     
     if os.path.exists(cache_folder):
         shutil.rmtree(cache_folder)
+    logger.info("Finished PDF comparison. Output folder: %s", save_folder)
 
 def init_folder(folder):
     # check file is exists
@@ -88,14 +104,16 @@ def save_origin_image(a_image_path, b_image_path, origin_folder):
 
 def get_text_images(a_index, a_pdf, a_image, b_index, b_pdf, b_image):
     text_diffs = CompareUtils.compare_pdf_by_text(a_pdf, a_index, b_pdf, b_index)
-    a_text_image = get_text_image(a_index, a_pdf.path, text_diffs[0], a_image.copy(),a_pdf.page_width, a_pdf.page_height)
-    b_text_image = get_text_image(b_index, b_pdf.path, text_diffs[1], b_image.copy(), b_pdf.page_width, b_pdf.page_height)
+    a_text_image = get_text_image(text_diffs[0], a_image.copy(), a_pdf.page_width, a_pdf.page_height)
+    b_text_image = get_text_image(text_diffs[1], b_image.copy(), b_pdf.page_width, b_pdf.page_height)
     return a_text_image, b_text_image
     
-def get_text_image(index, path, diffs, image, width, height):
-    words_group = _extract_words(diffs)
-    edit_image = _draw_diff_word(words_group, image, width, height)
-    return edit_image
+def get_text_image(diffs, image, width, height):
+    words_group = {
+        key: pdf_utils.extract_words(words)
+        for key, words in diffs.items()
+    }
+    return _draw_diff_word(words_group, image, width, height)
 
 def merge_image(
         a_image=None, 
@@ -145,38 +163,59 @@ def merge_image(
     result_image = np.vstack((upper, middle, lower))
     return result_image
 
-def _extract_words(words_group):
-        extract_words = {}
-        for key, words in words_group.items():
-            extract_words[key] = pdf_utils.extract_words(words)
-        return extract_words
-
 def _draw_diff_word(words_group, image, width, height):
     img_height, img_width = image.shape[:2]
-    alpha = 0.6  # transparence
-    
-    # Calculated scaling factor
+
     x_scale = img_width / width
     y_scale = img_height / height
-    
-    # Create a copy
-    draw_image = image.copy()
-    
-    for key, words in words_group.items():
-        color = CharInfo.colors.get(key, (0, 0, 255))  # Default is red
-        for word in words:
-            x0, y0, x1, y1 = word["x0"] * x_scale, word["top"] * y_scale, word["x1"] * x_scale, word["bottom"] * y_scale
 
-            # Computed plot coordinates
-            top_left = (int(round(x0)), int(round(y0)))
-            bottom_right = (int(round(x1)), int(round(y1)))
-            
-            # Draw a translucent rectangle directly on the copy
-            cv2.rectangle(draw_image, top_left, bottom_right, color, -1)
-            
-            # Draw border
-            cv2.rectangle(image, top_left, bottom_right, color, 2)
-    
-    # Apply transparency at the end of the loop
-    image = cv2.addWeighted(draw_image, alpha, image, 1 - alpha, 0)
+    overlay_fill = image.copy()
+    overlay_stroke = image.copy()
+
+    for key, words in words_group.items():
+        style = OVERLAY_STYLES.get(key, OVERLAY_STYLES[CharInfo.STATE_DIFF])
+        fill_color = style["fill"]
+        stroke_color = style["stroke"]
+        fill_alpha = style["fill_alpha"]
+        stroke_alpha = style["stroke_alpha"]
+
+        for word in words:
+            x0 = word["x0"] * x_scale
+            y0 = word["top"] * y_scale
+            x1 = word["x1"] * x_scale
+            y1 = word["bottom"] * y_scale
+
+            pad_x = max(1, int(round((x1 - x0) * 0.04)))
+            pad_y = max(1, int(round((y1 - y0) * 0.12)))
+
+            left = max(0, int(round(x0)) - pad_x)
+            top = max(0, int(round(y0)) - pad_y)
+            right = min(img_width - 1, int(round(x1)) + pad_x)
+            bottom = min(img_height - 1, int(round(y1)) + pad_y)
+
+            if right <= left or bottom <= top:
+                continue
+
+            cv2.rectangle(
+                overlay_fill,
+                (left, top),
+                (right, bottom),
+                fill_color,
+                -1,
+                lineType=cv2.LINE_AA,
+            )
+            image = cv2.addWeighted(overlay_fill, fill_alpha, image, 1 - fill_alpha, 0)
+            overlay_fill[:] = image
+
+            cv2.rectangle(
+                overlay_stroke,
+                (left, top),
+                (right, bottom),
+                stroke_color,
+                2,
+                lineType=cv2.LINE_AA,
+            )
+            image = cv2.addWeighted(overlay_stroke, stroke_alpha, image, 1 - stroke_alpha, 0)
+            overlay_stroke[:] = image
+
     return image

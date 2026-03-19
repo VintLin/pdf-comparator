@@ -18,7 +18,7 @@ Sample Comparison Results:
 ## ❓ What Can PDF Comparator Do?
 
 #### 1. Image Difference Comparison
-This tool generates a comparison result based on pixel differences between two PDF files, including four images. In the top two images, the red overlay indicates areas with pixel differences. To make differences more evident, two additional images are provided below. If the bottom-left image is pure white or the bottom-right image is pure black, it signifies that there are no differences between the two PDFs.
+This tool generates a three-row comparison sheet for each matched page pair. The top row highlights text differences on the left and right pages, the middle row overlays pixel-level image differences on both pages, and the bottom row shows the grayscale absolute difference together with its inverted view for easier inspection.
 
 <p align="center">
   <img src='../images/example_image.jpg' width=600>
@@ -28,8 +28,8 @@ This tool generates a comparison result based on pixel differences between two P
 The tool will mark all recognizable text in the PDF with colored masks, where different colors have different meanings.
 
 - **Green**: The word remains unchanged.
-- **Orange**: Both the font size and color of the word have changed.
-- **Red**: The word is an added or modified word.
+- **Orange**: The text matches, but its size and/or color changed.
+- **Red**: The word is unmatched, added, or modified.
 
 <p align="center">
   <img src='../images/example_text.jpg' width=600>
@@ -57,6 +57,8 @@ python3 -m venv venv
 ```bash
 pip3 install -r requirements.txt
 ```
+
+Page rendering now uses `pypdfium2`, so no separate `poppler` installation is required.
 
 4. **Run the Code Directly:** Compare PDF files by running the following command:
 
@@ -86,7 +88,7 @@ This program accepts the following command line arguments:
 
 - `output_folder` (required): Path to the output folder. Comparison results will be saved in this folder.
 
-- `--cache` or `-c`: Optional argument for specifying a cache path. If a cache path is specified, the program will use caching to accelerate the comparison process. Caching is not enabled by default.
+- `--log-dir` or `--cache` or `-c`: Optional directory used to write `app.log`. `--cache` is kept as a legacy alias for compatibility.
 
 ### Examples
 
@@ -96,8 +98,8 @@ Here are some usage examples:
 # Perform comparison
 python3 -m pdfcomparator file1.pdf file2.pdf output_folder/
 
-# Perform comparison and enable caching
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --cache /path/to/cache
+# Perform comparison and write logs to a custom directory
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --log-dir /path/to/logs
 ```
 
 ## 👨‍💻‍ Contributors

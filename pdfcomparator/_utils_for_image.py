@@ -14,8 +14,7 @@ class ImageUtils:
                 np_array = np.frombuffer(bytes, dtype=np.uint8)
             return cv2.imdecode(np_array, cv2.IMREAD_UNCHANGED)
         except Exception as e:
-            # Handle exceptions for debugging and error tracing
-            print(f"Failed to read image due to: {e}")
+            logging.exception("Failed to read image from %s", path)
             return None
     
     @staticmethod
@@ -43,11 +42,9 @@ class ImageUtils:
             score, _ = structural_similarity(resizedA, resizedB, channel_axis=2, full=True)  # multichannel 参数允许处理彩色图像
             
             logging.debug(f"SSIM: {score} compare: {a_path} vs {b_path}")
-            print(f"SSIM: {score} compare: {a_path} vs {b_path}")
             return score
         except Exception as e:
-            # Handle exceptions for debugging and error tracing
-            print(f"Failed to get_image_same_rate to: {e}")
+            logging.exception("Failed to compare image similarity: %s vs %s", a_path, b_path)
             return 0
         finally:
             gc.collect()

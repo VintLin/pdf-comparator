@@ -18,7 +18,7 @@
 ## ❓ PDF比较器能做什么？
 
 #### 1. 像素差异对比
-工具会根据两份PDF像素差异而生成对比结果，其中包含四张图片。上方两张图片中红色遮罩表示对应区域有像素差异。为了让差异更加清晰，同时提供下方两张图片，如果左下图片为纯白或右下图片为纯黑则代表两份PDF没有差异。
+工具会为每组匹配页面生成一张三行布局的对比图。上方一行分别展示左右页面的文字差异遮罩，中间一行展示左右页面的像素差异遮罩，下方一行展示灰度绝对差异图及其反相图，便于快速定位差异。
 
 <p align="center">
   <img src='../images/example_image.jpg' width=900>
@@ -28,8 +28,8 @@
 工具会将PDF中所有能够识别到的文字使用带颜色的遮罩进行标识，其中不同颜色有不同的含义。
 
 - **绿色**：该字未改变
-- **橙色**：该字字号、字色改变
-- **红色**：该字为增改字。
+- **橙色**：文字内容一致，但字号和/或颜色有变化
+- **红色**：该字未匹配、为新增或被修改
 
 <p align="center">
   <img src='../images/example_text.jpg' width=900>
@@ -57,6 +57,8 @@ python3 -m venv venv
 ```bash
 pip3 install -r requirements.txt
 ```
+
+当前页面渲染使用 `pypdfium2`，不再需要额外安装 `poppler`。
 
 4. **直接运行代码：** 通过运行以下命令对比PDF文件：
 
@@ -86,7 +88,7 @@ python3 setup.py build
 
 - `output_folder` (必需)：输出文件夹的路径。比较结果将会被保存在这个文件夹中。
 
-- `--cache` 或 `-c`：可选参数，用于指定缓存路径。如果指定了缓存路径，程序将会使用缓存来加速比较过程。默认情况下不启用缓存。
+- `--log-dir` 或 `--cache` 或 `-c`：可选参数，用于指定 `app.log` 的输出目录。`--cache` 仅作为兼容旧版本的别名保留。
 
 ### 例子
 
@@ -96,8 +98,8 @@ python3 setup.py build
 # 执行比较
 python3 -m pdfcomparator file1.pdf file2.pdf output_folder/
 
-# 执行比较，并启用缓存
-python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --cache /path/to/cache
+# 执行比较，并将日志写入指定目录
+python3 -m pdfcomparator file1.pdf file2.pdf output_folder/ --log-dir /path/to/logs
 ```
 
 ## 👨‍💻‍ 贡献者

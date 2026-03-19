@@ -2,29 +2,16 @@ import os
 import re
 import shutil
 import logging
-import threading
 import pdfplumber
+import pypdfium2
 
-from pdfplumber.page import Page as PlumberPage
-from pdf2image import convert_from_path
-from threading import Thread
-from pdfcomparator._utils_for_char import CharUtils
+from pdfcomparator._pdf_text_extractor import PDFTextExtractor
 
 class PDFHandler:
     def __init__(self, path) -> None:
         self.path = path
         self._pages : list = []
-        self._lock = threading.Lock() 
-    
-    @staticmethod
-    def get_str(groups, add_return=False):
-        str = ""
-        for group in groups:
-            # words_group = pdf_utils.extract_words(group)
-            result = PDFHandler._get_text(group, add_return).replace(" ", "")
-            if result.strip():
-                str += f"{result}\n"
-        return str
+        self._text_extractor = PDFTextExtractor()
     
     @staticmethod
     def get_texts(groups, add_return=False):
@@ -73,39 +60,35 @@ class PDFHandler:
     
     def load(self):
         with pdfplumber.open(self.path) as pdf:
-            # set common stats
+            # Cache shared page metadata before extracting text groups.
             self.page_count = len(pdf.pages)
             self.page_width = pdf.pages[0].width
             self.page_height = pdf.pages[0].height
-            
-            threads = []
+            self._pages = [None for _ in range(self.page_count)]
             for index in range(self.page_count):
-                thread = Thread(target=self.load_page, args=(pdf.pages[index],))
-                threads.append(thread)
-                thread.start()
-            
-            for thread in threads:
-                thread.join()
+                self._pages[index] = self._text_extractor.extract_page_char_groups(pdf.pages[index])
         return self
-        
-    def load_page(self, page: PlumberPage):
-        with self._lock:  
-            chars = page.chars
-            lines = CharUtils.divide_groups(chars)
-            self._pages.append(lines)
     
     def to_images(self, output_folder):
-        print(output_folder)
+        logging.debug("Rendering PDF pages to images in %s", output_folder)
         if os.path.exists(output_folder):
             shutil.rmtree(output_folder)
         os.makedirs(output_folder, exist_ok=True)
-        # convert to image
+
         image_files = []
-        images = convert_from_path(self.path, fmt='jpeg', thread_count=8, dpi=200)
-        for index, image in enumerate(images):
-            image_path = os.path.join(output_folder, f"page_{index + 1}.jpg")
-            image.save(image_path, "JPEG")
-            image_files.append(image_path)
-            logging.debug("Image Create: " + image_path)
-        del images
+        pdf = pypdfium2.PdfDocument(self.path)
+        scale = 200 / 72
+        try:
+            for index in range(len(pdf)):
+                page = pdf.get_page(index)
+                try:
+                    image = page.render(scale=scale).to_pil()
+                    image_path = os.path.join(output_folder, f"page_{index + 1}.jpg")
+                    image.convert("RGB").save(image_path, "JPEG")
+                    image_files.append(image_path)
+                    logging.debug("Image created: %s", image_path)
+                finally:
+                    page.close()
+        finally:
+            pdf.close()
         return image_files

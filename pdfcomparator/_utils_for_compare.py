@@ -1,12 +1,63 @@
-import time
-import threading
+import logging
 import concurrent.futures
 
-from queue import Queue
 from pdfcomparator._utils_for_image import ImageUtils
-from pdfcomparator._utils_for_char import CharInfo
 from pdfcomparator._utils_for_string import StringUtils
 from pdfcomparator._pdf_handler import PDFHandler
+
+logger = logging.getLogger(__name__)
+
+
+class CharInfo:
+    STATE_DIFF = -1
+    STATE_SIZE_COLOR_DIFF = 0
+    STATE_SAME = 1
+
+    colors = {
+        STATE_SAME: (0, 255, 0),  # Green: exact match
+        STATE_SIZE_COLOR_DIFF: (0, 165, 230),  # Orange: text matches but style differs
+        STATE_DIFF: (0, 0, 255),  # Red: unmatched
+    }
+
+    def __init__(self, chars) -> None:
+        self.chars = chars
+        self.match_chars = [[CharInfo.STATE_DIFF for _ in range(len(line))] for line in chars]
+
+    def is_used(self, line_index, char_index):
+        return self.match_chars[line_index][char_index] != CharInfo.STATE_DIFF
+
+    def get_result(self):
+        diff_chars = []
+        same_chars = []
+        size_color_diff_chars = []
+        for i, line in enumerate(self.match_chars):
+            for j, char_state in enumerate(line):
+                char = self.chars[i][j]
+                if char_state == CharInfo.STATE_DIFF:
+                    diff_chars.append(char)
+                elif char_state == CharInfo.STATE_SAME:
+                    same_chars.append(char)
+                elif char_state == CharInfo.STATE_SIZE_COLOR_DIFF:
+                    size_color_diff_chars.append(char)
+                else:
+                    diff_chars.append(char)
+        return {
+            CharInfo.STATE_DIFF: diff_chars,
+            CharInfo.STATE_SAME: same_chars,
+            CharInfo.STATE_SIZE_COLOR_DIFF: size_color_diff_chars,
+        }
+
+    def set_char_match(self, line_index, char_index, state):
+        self.match_chars[line_index][char_index] = state
+
+    def get_diff_chars(self):
+        diff_chars = []
+        for line_index, line in enumerate(self.match_chars):
+            for char_index, char_state in enumerate(line):
+                if char_state == CharInfo.STATE_DIFF:
+                    diff_chars.append([self.chars[line_index][char_index], line_index, char_index])
+        return diff_chars
+
 
 class CompareUtils:
     @staticmethod
@@ -15,87 +66,76 @@ class CompareUtils:
             return CompareUtils._get_images_when_page_count_equal(a_pages, b_pages, is_large)
         else:
             return CompareUtils._get_images_when_page_count_different(a_pages, b_pages, is_large)
-    
+
     @staticmethod
     def _get_images_when_page_count_equal(a_images, b_images, is_large):
-        result_queue = Queue()
-        threads = [threading.Thread(
-            target=CompareUtils._image_similarity, 
-            args=(i, a_images[i], b_images[i], result_queue)
-            ) for i in range(len(b_images))]
-        
-        for thread in threads:
-            if (is_large):
-                time.sleep(0.1)
-            thread.start()
-            
-        for thread in threads:
-            thread.join()
-        
-        results = []
-        while not result_queue.empty():
-            results.append(result_queue.get())
+        if not a_images:
+            return []
 
-        return results
-    
-    @staticmethod
-    def _image_similarity(i, a_image, b_image, result_queue):
-        result = ImageUtils.get_similarity(a_image, b_image)
-        result_queue.put([i, i, result])
-    
+        max_workers = CompareUtils._get_max_workers(len(a_images), is_large)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            rates = list(executor.map(ImageUtils.get_similarity, a_images, b_images))
+        return [[index, index, rate] for index, rate in enumerate(rates)]
+
     @staticmethod
     def _get_images_when_page_count_different(a_images, b_images, is_large):
-        match_pages = []
-        used_indexes = set()
         is_a_more = len(a_images) >= len(b_images)
         more_images, few_images = (a_images, b_images) if is_a_more else (b_images, a_images)
-        
-        # Use ThreadPoolExecutor to parallelize image comparison
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            # Prepare futures for all comparisons
-            futures = [
-                executor.submit(
-                    CompareUtils._compare_images, 
-                    few_index, 
-                    few_image, 
-                    more_images, 
-                    used_indexes
-                    ) for few_index, few_image in enumerate(few_images)]
-            
-            # Process results as they are completed
-            for future in concurrent.futures.as_completed(futures):
-                few_index, match_index, match_rate = future.result()
-                if match_index != -1:
-                    used_indexes.add(match_index)
-                    if is_a_more:
-                        match_pages.append([match_index, few_index, match_rate])
-                    else:
-                        match_pages.append([few_index, match_index, match_rate])
-                    print(f"match {few_index}/{len(a_images)} {match_index}/{len(b_images)}")
-                else:
-                    print(f"No match found for index {few_index}")
-        return match_pages
-    
-    @staticmethod
-    def _compare_images(image_index, origin_image, compare_images, used_indexes):
-        match_rate = -1
-        match_index = -1
-        for index, image in enumerate(compare_images):
-            if index in used_indexes:
+
+        if not more_images or not few_images:
+            return []
+
+        max_workers = CompareUtils._get_max_workers(len(more_images) * len(few_images), is_large)
+        candidates = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(ImageUtils.get_similarity, few_image, more_image): (few_index, more_index)
+                for few_index, few_image in enumerate(few_images)
+                for more_index, more_image in enumerate(more_images)
+            }
+            for future in concurrent.futures.as_completed(future_map):
+                few_index, more_index = future_map[future]
+                rate = future.result()
+                candidates.append((few_index, more_index, rate))
+
+        candidates.sort(key=lambda item: item[2], reverse=True)
+
+        used_few_indexes = set()
+        used_more_indexes = set()
+        match_pages = []
+        for few_index, more_index, match_rate in candidates:
+            if few_index in used_few_indexes or more_index in used_more_indexes:
                 continue
-            rate = ImageUtils.get_similarity(origin_image, image)
-            if rate > match_rate:
-                match_rate = rate
-                match_index = index
-        return image_index, match_index, match_rate
-    
+
+            used_few_indexes.add(few_index)
+            used_more_indexes.add(more_index)
+            if is_a_more:
+                match_pages.append([more_index, few_index, match_rate])
+            else:
+                match_pages.append([few_index, more_index, match_rate])
+            logger.debug("Matched page %s with %s at rate %.4f", few_index, more_index, match_rate)
+
+            if len(used_few_indexes) == len(few_images):
+                break
+
+        match_pages.sort(key=lambda item: (item[0], item[1]))
+        return match_pages
+
+    @staticmethod
+    def _get_max_workers(task_count, is_large):
+        if task_count <= 1:
+            return 1
+        if is_large:
+            return min(2, task_count)
+        return min(8, task_count)
+
     @staticmethod
     def compare_pdf_by_text(a_pdf: PDFHandler, a_index: int, b_pdf: PDFHandler, b_index: int):
         # 1. get pdf chars
         a_lines = a_pdf.get_page_chars(a_index)
         b_lines = b_pdf.get_page_chars(b_index)
         
-        # 2. group chars convert to text
+        # 2. Convert extracted char groups back to comparable text snippets.
         a_texts = PDFHandler.get_texts(a_lines)
         b_texts = PDFHandler.get_texts(b_lines)
         
@@ -146,15 +186,12 @@ class CompareUtils:
         for a_char_index in range(len(a_text)):
             a_split_texts = CompareUtils._get_split_texts(a_char_index, a_text)
             for distance, split_text in a_split_texts:    
-                try:
-                    match_index = b_text.find(split_text)
-                    b_char_index = match_index + distance
-                    if match_index == -1 or b_char_index >= len(b_text):
-                        continue
-                    matches_index.append([a_char_index, b_char_index])
-                    break
-                except:
-                    print("Error")
+                match_index = b_text.find(split_text)
+                b_char_index = match_index + distance
+                if match_index == -1 or b_char_index >= len(b_text):
+                    continue
+                matches_index.append([a_char_index, b_char_index])
+                break
         return matches_index
 
     @staticmethod
@@ -186,16 +223,27 @@ class CompareUtils:
 
     @staticmethod
     def _is_equal(a, b):
-        try:
-            is_same_text = a['text'] == b['text'] and not a['text'].isspace() and not b['text'].isspace()
-            is_same_size = CompareUtils._round_off(a['size']) == CompareUtils._round_off(b['size'])
-            is_same_color = a['non_stroking_color'] == b['non_stroking_color'] and a['stroking_color'] == a['stroking_color']
-            return [is_same_text, is_same_size, is_same_color]
-        except:
+        a_text = a.get("text")
+        b_text = b.get("text")
+        if not a_text or not b_text or a_text.isspace() or b_text.isspace():
             return [False, False, False]
+
+        try:
+            is_same_size = CompareUtils._round_off(a.get("size")) == CompareUtils._round_off(b.get("size"))
+        except (TypeError, ValueError):
+            return [False, False, False]
+
+        is_same_text = a_text == b_text
+        is_same_color = (
+            a.get("non_stroking_color") == b.get("non_stroking_color")
+            and a.get("stroking_color") == b.get("stroking_color")
+        )
+        return [is_same_text, is_same_size, is_same_color]
 
     @staticmethod
     def _round_off(number):
+        if number is None:
+            return 0
         integer_part = int(number)
         decimal_part = number - integer_part
         if decimal_part > 0.75:
@@ -214,16 +262,24 @@ class CompareUtils:
         
         for a_char, a_line_index, a_char_index in a_diff_chars:
             for b_char, b_line_index, b_char_index in b_diff_chars:
-                try:
-                    state = CompareUtils._get_state(a_char, b_char)
-                    if state != CharInfo.STATE_DIFF:
-                        overlap = StringUtils.calculate_overlap([a_char['x0'], a_char['y0'], a_char['x1'], a_char['y1']], [b_char['x0'], b_char['y0'], b_char['x1'], b_char['y1']])
-                        if overlap < 0.6:
-                            continue
-                        a_info.set_char_match(a_line_index, a_char_index, state)
-                        b_info.set_char_match(b_line_index, b_char_index, state)
-                        break
-                except:
-                    print("check chars error")
-    
-    
+                state = CompareUtils._get_state(a_char, b_char)
+                if state == CharInfo.STATE_DIFF:
+                    continue
+
+                overlap = CompareUtils._get_overlap(a_char, b_char)
+                if overlap < 0.6:
+                    continue
+
+                a_info.set_char_match(a_line_index, a_char_index, state)
+                b_info.set_char_match(b_line_index, b_char_index, state)
+                break
+
+    @staticmethod
+    def _get_overlap(a_char, b_char):
+        required_keys = ("x0", "y0", "x1", "y1")
+        if any(key not in a_char or key not in b_char for key in required_keys):
+            return 0
+        return StringUtils.calculate_overlap(
+            [a_char["x0"], a_char["y0"], a_char["x1"], a_char["y1"]],
+            [b_char["x0"], b_char["y0"], b_char["x1"], b_char["y1"]],
+        )
